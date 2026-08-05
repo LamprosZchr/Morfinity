@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
-Sitemap: https://morfintiy.com/sitemap.xml
+Sitemap: https://morfinity.io/sitemap.xml
