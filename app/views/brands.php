@@ -1,0 +1,2 @@
+<header class="page-hero"><p class="eyebrow">Independent worlds</p><h1>MORFINITY Brands</h1><p class="lead">Distinct identities, connected by one creative and production platform.</p></header><section class="section container"><div class="grid"><?php foreach ($brands as $brand): ?><a class="brand-card" style="--brand:<?= e($brand['accent_color']) ?>" href="<?= e(url('/brands/'.$brand['slug'])) ?>"><span class="eyebrow">Powered by MORFINITY</span><h3><?= e($brand['name']) ?></h3><p><?= e($brand['tagline']) ?></p></a><?php endforeach; ?></div></section>
+

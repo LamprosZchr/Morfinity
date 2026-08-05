@@ -1,0 +1,2 @@
+<section class="section container"><div class="empty"><p class="eyebrow">Order received</p><h1>Thank you.</h1><p>Your reference is <strong><?= e($order['order_number']) ?></strong>. We sent the next-step instructions to <?= e($order['email']) ?>.</p><p>This launch uses manual order-request payment. No card has been charged.</p><a class="button" href="<?= e(url('/shop')) ?>">Continue exploring</a></div></section>
+

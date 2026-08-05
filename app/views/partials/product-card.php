@@ -1,0 +1,2 @@
+<article class="product-card"><a href="<?= e(url('/product/'.$product['slug'])) ?>"><div class="visual"><img loading="lazy" src="<?= e($product['image'] ?: url('/assets/images/product-placeholder.svg')) ?>" alt="<?= e($product['name']) ?>"></div><div class="product-meta"><div><h3><?= e($product['name']) ?></h3><span class="muted"><?= e($product['brand_name'] ?: 'MORFINITY Originals') ?></span></div><strong><?= money($product['sale_price'] ?: $product['price']) ?></strong></div></a></article>
+

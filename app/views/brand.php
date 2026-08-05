@@ -1,0 +1,2 @@
+<header class="page-hero" style="background:<?= e($brand['accent_color']) ?>;color:white"><p class="eyebrow">A MORFINITY Brand</p><h1><?= e($brand['name']) ?></h1><p class="lead"><?= e($brand['tagline']) ?></p></header><section class="section container"><div class="prose"><p><?= nl2br(e($brand['description'])) ?></p></div><div class="section-head"><h2>Products</h2></div><div class="grid"><?php foreach ($products as $product) require ROOT.'/app/views/partials/product-card.php'; ?></div></section>
+
