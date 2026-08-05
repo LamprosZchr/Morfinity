@@ -26,8 +26,8 @@ Never commit `.env`, customer data, exported databases, uploaded application art
 3. Deploy the repository root directly to `public_html`. `index.php` and `.htaccess` must be directly inside `public_html`. No build command or Node runtime is required. The root `.htaccess` denies direct access to application code, SQL, scripts, storage and legacy deployment folders.
 4. In Hostinger hPanel, create a MySQL database and user. Record the database host, name, username, and password—do not put them in Git.
 5. Open phpMyAdmin, select that database, import `database/schema.sql`, then `database/seed.sql` once.
-6. Create `public_html/.env` manually from `.env.example`; it is ignored by Git. Set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://morfintiy.com`, timezone, and the Hostinger database values. Quote `DB_PASS` if it contains spaces, `#`, `=`, or quotes. Generate `APP_KEY` with a password generator (32+ random characters).
-7. Attach the production domain `morfintiy.com` in hPanel. The spelling is intentional. The sitemap and robots files already use this domain.
+6. Create `public_html/.env` manually from `.env.example`; it is ignored by Git. Set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://morfinity.io`, timezone, and the Hostinger database values. Quote `DB_PASS` if it contains spaces, `#`, `=`, or quotes. Generate `APP_KEY` with a password generator (32+ random characters).
+7. Attach the production domain `morfinity.io` in hPanel. The sitemap and robots files already use this domain.
 8. Enable Hostinger SSL and **Force HTTPS**. Verify the secure-cookie session works after doing so.
 9. Import/create the admin securely. If Hostinger provides SSH, run `php scripts/create-admin.php you@domain.com`. Otherwise generate a password hash locally with `password_hash`, insert it through phpMyAdmin, and delete the plaintext immediately.
 10. If SSH is enabled, run `php scripts/diagnose.php`. It checks PHP, extensions, required environment variables, writable directories, and database connectivity without printing secrets. It returns 404 over the web and is additionally blocked by `.htaccess`.
@@ -50,7 +50,7 @@ Use these exact names in `public_html/.env`; replace every bracketed value and n
 ```dotenv
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://morfintiy.com
+APP_URL=https://morfinity.io
 APP_TIMEZONE=Europe/Nicosia
 APP_KEY="[32+ random characters]"
 DB_HOST=localhost
