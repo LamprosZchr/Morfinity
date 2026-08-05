@@ -48,8 +48,10 @@ try {
     } elseif (str_starts_with($path,'/admin')) {
         handle_admin($path,$method);
     } else render('error',['title'=>'Page not found','message'=>'The page may have moved or never existed.'],404);
-} catch (RuntimeException $e) { set_old($_POST); flash('error',$e->getMessage()); redirect($_SERVER['HTTP_REFERER']??'/'); }
-  catch (Throwable $e) { error_log((string)$e); render('error',['title'=>'Something went wrong','message'=>'We could not complete that request. Please try again.'],500); }
+} catch (Throwable $e) {
+    http_response_code(500);
+    exit(get_class($e) . ': ' . $e->getMessage());
+}
 
 function checkout_fields(): array{return [['name'=>'customer_name','label'=>'Full name','required'=>1],['name'=>'email','label'=>'Email','type'=>'email','required'=>1],['name'=>'phone','label'=>'Phone'],['name'=>'country','label'=>'Country','required'=>1],['name'=>'address','label'=>'Address','required'=>1,'full'=>1],['name'=>'city','label'=>'City'],['name'=>'postal_code','label'=>'Postal code'],['name'=>'notes','label'=>'Order notes','type'=>'textarea','full'=>1]];}
 function application_fields(): array{return [['name'=>'applicant_name','label'=>'Applicant name','required'=>1],['name'=>'email','label'=>'Email','type'=>'email','required'=>1],['name'=>'phone','label'=>'Phone number'],['name'=>'country','label'=>'Country'],['name'=>'brand_name','label'=>'Proposed brand name'],['name'=>'target_audience','label'=>'Target audience'],['name'=>'story','label'=>'Brand idea and story','type'=>'textarea','required'=>1,'full'=>1],['name'=>'preferred_style','label'=>'Preferred style'],['name'=>'preferred_products','label'=>'Preferred products'],['name'=>'artwork','label'=>'Existing logo or artwork','type'=>'file'],['name'=>'social_links','label'=>'Social-media links'],['name'=>'budget','label'=>'Estimated budget'],['name'=>'launch_date','label'=>'Expected launch date','type'=>'date'],['name'=>'notes','label'=>'Additional notes','type'=>'textarea','full'=>1],['name'=>'agreement','label'=>'Agreement','type'=>'checkbox','help'=>'I agree to the privacy policy and to being contacted about this application.','required'=>1,'full'=>1]];}
