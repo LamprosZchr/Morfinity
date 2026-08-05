@@ -1,6 +1,17 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/app/bootstrap.php';
+try {
+    require __DIR__ . '/app/bootstrap.php';
+} catch (Throwable $bootstrapError) {
+    error_log('[MORFINITY bootstrap] ' . get_debug_type($bootstrapError) . ': ' . $bootstrapError->getMessage());
+    http_response_code(500);
+    header('Content-Type: text/html; charset=UTF-8');
+    $showDetail = filter_var(getenv('APP_DEBUG') ?: 'false', FILTER_VALIDATE_BOOLEAN)
+        && strtolower((string)(getenv('APP_ENV') ?: 'production')) !== 'production';
+    $message = $showDetail ? htmlspecialchars($bootstrapError->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : 'The application is temporarily unavailable.';
+    echo '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Server error | MORFINITY</title><body><main><h1>Something went wrong.</h1><p>' . $message . '</p></main></body></html>';
+    exit;
+}
 
 $path = '/' . trim((string)(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'), '/');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -22,7 +33,7 @@ try {
     } elseif (preg_match('#^/brands/([a-z0-9-]+)$#',$path,$m) && $method==='GET') {
         $brand=query_one("SELECT * FROM brands WHERE slug=? AND status='active'",[$m[1]]); if(!$brand){render('error',['title'=>'Brand not found','message'=>'That brand is unavailable.'],404);}else render('brand',['title'=>$brand['name'],'brand'=>$brand,'products'=>query_all("SELECT p.*,? brand_name FROM products p WHERE p.brand_id=? AND p.status='active'",[$brand['name'],$brand['id']])]);
     } elseif ($path === '/cart/add' && $method === 'POST') {
-        verify_csrf(); $id=(int)($_POST['product_id']??0); $p=query_one("SELECT id,stock FROM products WHERE id=? AND status='active'",[$id]); if(!$p) throw new RuntimeException('Product is unavailable.'); $qty=max(1,min((int)$p['stock'],(int)($_POST['quantity']??1))); $_SESSION['cart'][$id]=min((int)$p['stock'],($_SESSION['cart'][$id]??0)+$qty); flash('success','Added to your bag.'); redirect('/cart');
+        verify_csrf(); $id=(int)($_POST['product_id']??0); $p=query_one("SELECT id,stock FROM products WHERE id=? AND status='active'",[$id]); if(!$p) throw new UserInputException('Product is unavailable.'); $qty=max(1,min((int)$p['stock'],(int)($_POST['quantity']??1))); $_SESSION['cart'][$id]=min((int)$p['stock'],($_SESSION['cart'][$id]??0)+$qty); flash('success','Added to your bag.'); redirect('/cart');
     } elseif ($path === '/cart/update' && $method === 'POST') {
         verify_csrf(); foreach(($_POST['qty']??[]) as $id=>$qty){$qty=max(0,min(99,(int)$qty));if($qty===0)unset($_SESSION['cart'][(int)$id]);else $_SESSION['cart'][(int)$id]=$qty;} flash('success','Bag updated.');redirect('/cart');
     } elseif ($path === '/cart' && $method === 'GET') {
@@ -30,27 +41,29 @@ try {
     } elseif ($path === '/checkout' && $method === 'GET') {
         if(!cart_details()['items']) redirect('/cart'); render('form',['title'=>'Checkout','intro'=>'Submit your order request. We will confirm availability, shipping and manual payment instructions. No card is charged online.','action'=>'/checkout','submit'=>'Place order request','fields'=>checkout_fields()]);
     } elseif ($path === '/checkout' && $method === 'POST') {
-        verify_csrf(); $cart=cart_details(); if(!$cart['items']) redirect('/cart'); $required=['customer_name','email','address','country']; foreach($required as $f) if(trim($_POST[$f]??'')==='') throw new RuntimeException('Please complete all required checkout fields.'); if(!filter_var($_POST['email'],FILTER_VALIDATE_EMAIL))throw new RuntimeException('Enter a valid email address.');
+        verify_csrf(); $cart=cart_details(); if(!$cart['items']) redirect('/cart'); $required=['customer_name','email','address','country']; foreach($required as $f) if(trim($_POST[$f]??'')==='') throw new UserInputException('Please complete all required checkout fields.'); if(!filter_var($_POST['email'],FILTER_VALIDATE_EMAIL))throw new UserInputException('Enter a valid email address.');
         $number='MOR-'.date('ymd').'-'.strtoupper(bin2hex(random_bytes(3))); db()->beginTransaction(); try{execute("INSERT INTO orders(order_number,customer_name,email,phone,address,city,postal_code,country,notes,subtotal,total) VALUES(?,?,?,?,?,?,?,?,?,?,?)",[$number,trim($_POST['customer_name']),strtolower(trim($_POST['email'])),trim($_POST['phone']??''),trim($_POST['address']),trim($_POST['city']??''),trim($_POST['postal_code']??''),trim($_POST['country']),trim($_POST['notes']??''),$cart['subtotal'],$cart['subtotal']]);$oid=(int)db()->lastInsertId();foreach($cart['items'] as $i)execute("INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,line_total) VALUES(?,?,?,?,?,?)",[$oid,$i['id'],$i['name'],$i['quantity'],$i['unit_price'],$i['line_total']]);db()->commit();unset($_SESSION['cart']);redirect('/order-confirmation?ref='.urlencode($number));}catch(Throwable $e){db()->rollBack();throw $e;}
     } elseif ($path === '/order-confirmation' && $method === 'GET') {
         $order=query_one("SELECT order_number,email FROM orders WHERE order_number=?",[$_GET['ref']??'']); if(!$order)redirect('/');render('confirmation',['title'=>'Order received','order'=>$order]);
     } elseif ($path === '/launch-your-brand' && $method === 'GET') {
         render('form',['title'=>'Launch your brand','intro'=>'Tell us where the idea starts. We will review the creative, product and launch opportunity with care.','action'=>'/launch-your-brand','submit'=>'Submit application','fields'=>application_fields()]);
     } elseif ($path === '/launch-your-brand' && $method === 'POST') {
-        verify_csrf(); foreach(['applicant_name','email','story'] as $f)if(trim($_POST[$f]??'')==='')throw new RuntimeException('Complete all required fields.');if(!filter_var($_POST['email'],FILTER_VALIDATE_EMAIL))throw new RuntimeException('Enter a valid email.');if(empty($_POST['agreement']))throw new RuntimeException('You must agree to the privacy notice.');$art=validate_upload('artwork','applications',true);execute("INSERT INTO brand_applications(applicant_name,email,phone,country,brand_name,story,target_audience,preferred_style,preferred_products,artwork,social_links,budget,launch_date,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",[trim($_POST['applicant_name']),strtolower(trim($_POST['email'])),trim($_POST['phone']??''),trim($_POST['country']??''),trim($_POST['brand_name']??''),trim($_POST['story']),trim($_POST['target_audience']??''),trim($_POST['preferred_style']??''),trim($_POST['preferred_products']??''),$art,trim($_POST['social_links']??''),trim($_POST['budget']??''),$_POST['launch_date']?:null,trim($_POST['notes']??'')]);clear_old();flash('success','Your application has been received. We will be in touch.');redirect('/launch-your-brand');
+        verify_csrf(); foreach(['applicant_name','email','story'] as $f)if(trim($_POST[$f]??'')==='')throw new UserInputException('Complete all required fields.');if(!filter_var($_POST['email'],FILTER_VALIDATE_EMAIL))throw new UserInputException('Enter a valid email.');if(empty($_POST['agreement']))throw new UserInputException('You must agree to the privacy notice.');$art=validate_upload('artwork','applications',true);execute("INSERT INTO brand_applications(applicant_name,email,phone,country,brand_name,story,target_audience,preferred_style,preferred_products,artwork,social_links,budget,launch_date,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",[trim($_POST['applicant_name']),strtolower(trim($_POST['email'])),trim($_POST['phone']??''),trim($_POST['country']??''),trim($_POST['brand_name']??''),trim($_POST['story']),trim($_POST['target_audience']??''),trim($_POST['preferred_style']??''),trim($_POST['preferred_products']??''),$art,trim($_POST['social_links']??''),trim($_POST['budget']??''),$_POST['launch_date']?:null,trim($_POST['notes']??'')]);clear_old();flash('success','Your application has been received. We will be in touch.');redirect('/launch-your-brand');
     } elseif ($path === '/contact' && $method === 'GET') {
         render('form',['title'=>'Contact','intro'=>'Questions, collaborations, production enquiries—send us a note.','action'=>'/contact','fields'=>[['name'=>'name','label'=>'Name','required'=>1],['name'=>'email','label'=>'Email','type'=>'email','required'=>1],['name'=>'subject','label'=>'Subject','full'=>1],['name'=>'message','label'=>'Message','type'=>'textarea','required'=>1,'full'=>1]]]);
     } elseif ($path === '/contact' && $method === 'POST') {
-        verify_csrf();if(!filter_var($_POST['email']??'',FILTER_VALIDATE_EMAIL)||trim($_POST['message']??'')==='')throw new RuntimeException('Enter a valid email and message.');execute("INSERT INTO contacts(name,email,subject,message) VALUES(?,?,?,?)",[trim($_POST['name']??''),strtolower(trim($_POST['email'])),trim($_POST['subject']??''),trim($_POST['message'])]);flash('success','Message received. Thank you.');redirect('/contact');
+        verify_csrf();if(!filter_var($_POST['email']??'',FILTER_VALIDATE_EMAIL)||trim($_POST['message']??'')==='')throw new UserInputException('Enter a valid email and message.');execute("INSERT INTO contacts(name,email,subject,message) VALUES(?,?,?,?)",[trim($_POST['name']??''),strtolower(trim($_POST['email'])),trim($_POST['subject']??''),trim($_POST['message'])]);flash('success','Message received. Thank you.');redirect('/contact');
     } elseif ($path === '/newsletter' && $method === 'POST') {
-        verify_csrf();$email=strtolower(trim($_POST['email']??''));if(!filter_var($email,FILTER_VALIDATE_EMAIL))throw new RuntimeException('Enter a valid email.');execute("INSERT INTO newsletter_subscribers(email) VALUES(?) ON DUPLICATE KEY UPDATE status='active'",[$email]);flash('success','You are on the list.');redirect($_SERVER['HTTP_REFERER']??'/');
+        verify_csrf();$email=strtolower(trim($_POST['email']??''));if(!filter_var($email,FILTER_VALIDATE_EMAIL))throw new UserInputException('Enter a valid email.');execute("INSERT INTO newsletter_subscribers(email) VALUES(?) ON DUPLICATE KEY UPDATE status='active'",[$email]);flash('success','You are on the list.');redirect(validation_redirect_target());
     } elseif (handle_content($path)) {
     } elseif (str_starts_with($path,'/admin')) {
         handle_admin($path,$method);
     } else render('error',['title'=>'Page not found','message'=>'The page may have moved or never existed.'],404);
+} catch (UserInputException $e) {
+    set_old($_POST); flash('error', $e->getMessage()); redirect(validation_redirect_target());
 } catch (Throwable $e) {
-    http_response_code(500);
-    exit(get_class($e) . ': ' . $e->getMessage());
+    log_exception($e);
+    render('error', ['title' => 'Something went wrong', 'message' => safe_exception_message($e)], 500);
 }
 
 function checkout_fields(): array{return [['name'=>'customer_name','label'=>'Full name','required'=>1],['name'=>'email','label'=>'Email','type'=>'email','required'=>1],['name'=>'phone','label'=>'Phone'],['name'=>'country','label'=>'Country','required'=>1],['name'=>'address','label'=>'Address','required'=>1,'full'=>1],['name'=>'city','label'=>'City'],['name'=>'postal_code','label'=>'Postal code'],['name'=>'notes','label'=>'Order notes','type'=>'textarea','full'=>1]];}
@@ -70,7 +83,7 @@ function handle_content(string $path): bool {
 
 function handle_admin(string $path,string $method): void {
  if($path==='/admin/login'&&$method==='GET'){render('admin/login',['title'=>'Admin sign in']);return;}
- if($path==='/admin/login'&&$method==='POST'){verify_csrf();$a=query_one('SELECT * FROM admins WHERE email=?',[strtolower(trim($_POST['email']??''))]);if(!$a||!password_verify($_POST['password']??'',$a['password_hash'])){usleep(300000);throw new RuntimeException('Invalid email or password.');}session_regenerate_id(true);$_SESSION['admin_id']=$a['id'];redirect('/admin');}
+ if($path==='/admin/login'&&$method==='POST'){verify_csrf();$a=query_one('SELECT * FROM admins WHERE email=?',[strtolower(trim($_POST['email']??''))]);if(!$a||!password_verify($_POST['password']??'',$a['password_hash'])){usleep(300000);throw new UserInputException('Invalid email or password.');}session_regenerate_id(true);$_SESSION['admin_id']=$a['id'];redirect('/admin');}
  require_admin();
  if($path==='/admin/logout'&&$method==='POST'){verify_csrf();unset($_SESSION['admin_id']);session_regenerate_id(true);redirect('/');}
  if($path==='/admin'&&$method==='GET'){render('admin/dashboard',['title'=>'Dashboard','stats'=>['Products'=>query_one('SELECT COUNT(*) n FROM products')['n'],'Orders'=>query_one('SELECT COUNT(*) n FROM orders')['n'],'Applications'=>query_one('SELECT COUNT(*) n FROM brand_applications')['n'],'Subscribers'=>query_one("SELECT COUNT(*) n FROM newsletter_subscribers WHERE status='active'")['n']],'orders'=>query_all('SELECT * FROM orders ORDER BY created_at DESC LIMIT 8')]);return;}
