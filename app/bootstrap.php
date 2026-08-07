@@ -220,3 +220,6 @@ function validate_upload(string $field, string $folder, bool $private = false): 
     if (!move_uploaded_file($_FILES[$field]['tmp_name'], "$dir/$name")) throw new RuntimeException('Could not store the uploaded image.');
     return ($private ? 'private://' : '/uploads/') . $folder . '/' . $name;
 }
+
+require_once ROOT . '/app/auth.php';
+require_once ROOT . '/app/stripe.php';

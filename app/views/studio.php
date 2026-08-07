@@ -1,0 +1,2 @@
+<header class="page-hero"><p class="eyebrow">Active Studio access</p><h1>MORFINITY Studio</h1><p class="lead">Welcome, <?= e($user['name']) ?>. Your verified Stripe entitlement is active.</p></header>
+<section class="section container"><div class="empty"><h2>Your workspace is unlocked.</h2><p>This protected route is available only while <code>studio_access</code> is active.</p><a class="button" href="<?= e(url('/account')) ?>">Manage account</a></div></section>

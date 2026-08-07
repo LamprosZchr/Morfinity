@@ -17,7 +17,43 @@ $path = '/' . trim((string)(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PA
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 try {
-    if ($path === '/' && $method === 'GET') {
+    if ($path === '/stripe/webhook' && $method === 'POST') {
+        stripe_handle_webhook();
+    } elseif ($path === '/plans' && $method === 'GET') {
+        $plans=[]; $stripeConfigured=stripe_enabled();
+        if($stripeConfigured){try{$plans=stripe_catalog();}catch(Throwable $catalogError){log_exception($catalogError);flash('error','Plans are temporarily unavailable.');}}
+        render('plans',['title'=>'Plans','plans'=>$plans,'stripeConfigured'=>$stripeConfigured]);
+    } elseif ($path === '/stripe/checkout' && $method === 'POST') {
+        verify_csrf(); $user=require_user(); $price=stripe_catalog_price(trim((string)($_POST['price_id']??'')));
+        if(!$price)throw new UserInputException('That Stripe plan is unavailable.');
+        stripe_redirect(stripe_create_checkout($user,$price));
+    } elseif ($path === '/stripe/portal' && $method === 'POST') {
+        verify_csrf(); stripe_redirect(stripe_create_portal(require_user()));
+    } elseif ($path === '/account/register' && $method === 'GET') {
+        if(is_user_signed_in())redirect('/account'); if(!empty($_GET['next']))$_SESSION['return_to']=(string)$_GET['next'];
+        render('account-login',['title'=>'Create account','mode'=>'register']);
+    } elseif ($path === '/account/register' && $method === 'POST') {
+        verify_csrf(); $name=trim((string)($_POST['name']??''));$email=strtolower(trim((string)($_POST['email']??'')));$password=(string)($_POST['password']??'');
+        if($name===''||!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($password)<10)throw new UserInputException('Enter your name, a valid email, and a password of at least 10 characters.');
+        if(query_one('SELECT id FROM users WHERE email=?',[$email]))throw new UserInputException('An account already exists for that email.');
+        execute('INSERT INTO users(email,password_hash,name) VALUES(?,?,?)',[$email,password_hash($password,PASSWORD_DEFAULT),$name]);
+        sign_in_user(['id'=>(int)db()->lastInsertId()]);clear_old();redirect(safe_return_to());
+    } elseif ($path === '/account/login' && $method === 'GET') {
+        if(is_user_signed_in())redirect('/account'); if(!empty($_GET['next']))$_SESSION['return_to']=(string)$_GET['next'];
+        render('account-login',['title'=>'Sign in','mode'=>'login']);
+    } elseif ($path === '/account/login' && $method === 'POST') {
+        verify_csrf();$email=strtolower(trim((string)($_POST['email']??'')));$user=query_one('SELECT * FROM users WHERE email=? AND status=?',[$email,'active']);
+        if(!$user||!password_verify((string)($_POST['password']??''),(string)$user['password_hash'])){usleep(300000);throw new UserInputException('Invalid email or password.');}
+        sign_in_user($user);clear_old();redirect(safe_return_to());
+    } elseif ($path === '/account/logout' && $method === 'POST') {
+        verify_csrf();sign_out_user();redirect('/');
+    } elseif ($path === '/account' && $method === 'GET') {
+        $user=require_user();render('account',['title'=>'Your account','user'=>$user,'entitlements'=>user_entitlements((int)$user['id'])]);
+    } elseif ($path === '/studio' && $method === 'GET') {
+        $user=require_user();
+        if(!user_has_entitlement((int)$user['id'],MORFINITY_ENTITLEMENT_KEY)){flash('error','An active Studio plan is required.');redirect('/plans');}
+        render('studio',['title'=>'Studio','user'=>$user]);
+    } elseif ($path === '/' && $method === 'GET') {
         render('home', ['title'=>'More than a brand','products'=>query_all("SELECT p.*,b.name brand_name FROM products p LEFT JOIN brands b ON b.id=p.brand_id WHERE p.status='active' AND p.featured=1 ORDER BY p.created_at DESC LIMIT 6"),'brands'=>query_all("SELECT * FROM brands WHERE status='active' AND featured=1 LIMIT 4")]);
     } elseif ($path === '/shop' && $method === 'GET') {
         $params=[]; $where="p.status='active'"; if (!empty($_GET['category'])) {$where.=' AND c.slug=?';$params[]=$_GET['category'];}
@@ -74,9 +110,9 @@ function handle_content(string $path): bool {
  '/production'=>['MORFINITY Production','Design to dispatch.','We connect creative direction to product design, printing, quality control, packaging and fulfilment. The production system is built to grow from a first T-shirt drop into broader categories.'],
  '/how-it-works'=>['How it works','From idea to independent brand.','<h2>01 — Discover</h2><p>We start with your idea, audience and ambition.</p><h2>02 — Define</h2><p>Identity, visual system, product direction and launch scope are shaped together.</p><h2>03 — Make</h2><p>We design products and coordinate production, printing, packaging and the online shop.</p><h2>04 — Launch</h2><p>You lead promotion and community. MORFINITY provides the creative and operational foundation.</p>'],
  '/about'=>['About MORFINITY','A platform for original ideas.','MORFINITY is a parent brand, creative studio and production platform. We make our own originals and help independent founders build brands with distinct identities—each powered by shared creative and operational infrastructure.'],
- '/faq'=>['Frequently asked questions','Straight answers before we begin.','<h2>Do you only make T-shirts?</h2><p>No. T-shirts are the starting point; the system supports hoodies, accessories, art and lifestyle categories.</p><h2>Who owns an independent brand?</h2><p>Ownership and commercial terms are agreed for each project before work begins.</p><h2>Can I pay online?</h2><p>The first launch uses secure order requests. We confirm availability, shipping and payment instructions manually.</p>'],
- '/privacy'=>['Privacy policy','How we handle information.','<p><strong>Last updated: '.date('F Y').'.</strong></p><p>We collect information you submit for orders, applications, contact and newsletters. We use it only to provide requested services, administer the website, meet legal obligations and communicate with you. We do not sell personal data. Contact '.e(setting('contact_email','hello@example.com')).' for access, correction or deletion requests. Hosting and email providers may process data on our behalf under appropriate safeguards.</p>'],
- '/terms'=>['Terms and conditions','The terms for using this website.','<p>Product descriptions, prices and availability may change. An order request is not accepted until MORFINITY confirms it. Intellectual property on this site belongs to MORFINITY or the identified independent brand. Project, production and brand-launch work is governed by a separate written agreement.</p>'],
+ '/faq'=>['Frequently asked questions','Straight answers before we begin.','<h2>Do you only make T-shirts?</h2><p>No. T-shirts are the starting point; the system supports hoodies, accessories, art and lifestyle categories.</p><h2>Who owns an independent brand?</h2><p>Ownership and commercial terms are agreed for each project before work begins.</p><h2>Can I pay online?</h2><p>Studio plans use secure Stripe Checkout. Physical-product orders continue through the reviewed order-request flow until shipping and fulfilment automation is launched.</p>'],
+ '/privacy'=>['Privacy policy','How we handle information.','<p><strong>Last updated: '.date('F Y').'.</strong></p><p>We collect information you submit for accounts, orders, applications, contact and newsletters. Stripe processes payment details; MORFINITY stores Stripe customer and transaction references but not full card numbers. We use information only to provide requested services, administer access, meet legal obligations and communicate with you. We do not sell personal data. Contact '.e(setting('contact_email','hello@example.com')).' for access, correction or deletion requests. Hosting, email and payment providers may process data on our behalf under appropriate safeguards.</p>'],
+ '/terms'=>['Terms and conditions','The terms for using this website.','<p>Product descriptions, prices and availability may change. Physical-product order requests are not accepted until MORFINITY confirms them. Paid Studio access is governed by the Price shown in Stripe Checkout; recurring subscriptions renew until cancelled through the Stripe Customer Portal. Access may be suspended after failed payment, cancellation, expiration or refund. Intellectual property on this site belongs to MORFINITY or the identified independent brand. Project, production and brand-launch work is governed by a separate written agreement.</p>'],
  '/returns-shipping'=>['Returns & shipping','Clear expectations for every order.','<p>Shipping cost, carrier and delivery estimate are confirmed before payment during the initial order-request launch. Contact us promptly after delivery if an item is damaged or incorrect. Final return eligibility, window and address must be configured for your selling country before launch.</p>']];
  if(!isset($pages[$path]))return false;[$title,$intro,$body]=$pages[$path];if(!str_contains($body,'<'))$body='<p>'.e($body).'</p>';render('content',compact('title','intro','body'));return true;
 }

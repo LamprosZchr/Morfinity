@@ -11,7 +11,7 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a class="wordmark" href="<?= e(url('/')) ?>" aria-label="MORFINITY home">MORFINITY<span>∞</span></a>
   <button class="nav-toggle" aria-expanded="false" aria-controls="nav">Menu</button>
-  <nav id="nav" aria-label="Main navigation"><a href="<?= e(url('/shop')) ?>">Shop</a><a href="<?= e(url('/originals')) ?>">Originals</a><a href="<?= e(url('/brands')) ?>">Brands</a><a href="<?= e(url('/production')) ?>">Production</a><a href="<?= e(url('/launch-your-brand')) ?>">Launch yours</a><a href="<?= e(url('/cart')) ?>">Bag <span class="badge"><?= cart_count() ?></span></a></nav>
+  <nav id="nav" aria-label="Main navigation"><a href="<?= e(url('/shop')) ?>">Shop</a><a href="<?= e(url('/plans')) ?>">Plans</a><a href="<?= e(url('/originals')) ?>">Originals</a><a href="<?= e(url('/brands')) ?>">Brands</a><a href="<?= e(url('/production')) ?>">Production</a><a href="<?= e(url('/launch-your-brand')) ?>">Launch yours</a><a href="<?= e(url(is_user_signed_in() ? '/account' : '/account/login')) ?>"><?= is_user_signed_in() ? 'Account' : 'Sign in' ?></a><a href="<?= e(url('/cart')) ?>">Bag <span class="badge"><?= cart_count() ?></span></a></nav>
 </header>
 <?php foreach ($_SESSION['flash'] ?? [] as $notice): ?><div class="notice <?= e($notice['type']) ?>" role="status"><?= e($notice['message']) ?></div><?php endforeach; unset($_SESSION['flash']); ?>
 <main id="main"><?= $content ?></main>
