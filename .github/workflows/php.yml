@@ -1,0 +1,23 @@
+name: PHP checks
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: curl, fileinfo, json, pdo, pdo_mysql
+      - name: Lint PHP
+        run: find . -name '*.php' -not -path './uploads/*' -not -path './storage/*' -print0 | xargs -0 -n1 php -l
+      - name: Stripe unit checks
+        run: php tests/stripe_unit.php
